@@ -53,12 +53,18 @@ public class DeviceActor extends AbstractBehavior<DeviceActor.Command> {
     public static final class RespondTemperature implements Command {
 
         final UUID requestId;
+        final String deviceId;
         final Optional<Double> value;
 
-        public RespondTemperature(final UUID requestId, final Optional<Double> value) {
+        public RespondTemperature(final UUID requestId, final String deviceId, final Optional<Double> value) {
             this.requestId = requestId;
+            this.deviceId = deviceId;
             this.value = value;
         }
+    }
+
+    public static enum Passivate implements Command {
+        INSTANCE
     }
 
     private final String groupId;
@@ -83,8 +89,14 @@ public class DeviceActor extends AbstractBehavior<DeviceActor.Command> {
         return newReceiveBuilder()
                 .onMessage(RecordTemperature.class, this::onRecordTemperature)
                 .onMessage(ReadTemperature.class, this::onReadTemperature)
+                .onMessageEquals(Passivate.INSTANCE, this::onPassivate)
                 .onSignal(PostStop.class, this::onPostStop)
                 .build();
+    }
+
+    private Behavior<Command> onPassivate() {
+        getContext().getLog().info("Stopping device actor {} due to passivation message.", this.deviceId);
+        return Behaviors.stopped();
     }
 
     private Behavior<Command> onRecordTemperature(final RecordTemperature message) {
@@ -98,7 +110,7 @@ public class DeviceActor extends AbstractBehavior<DeviceActor.Command> {
     }
 
     private Behavior<Command> onReadTemperature(final ReadTemperature message) {
-        message.replyTo.tell(new RespondTemperature(message.requestId, lastTemperatureReading));
+        message.replyTo.tell(new RespondTemperature(message.requestId, this.deviceId, lastTemperatureReading));
         return Behaviors.same();
     }
 
